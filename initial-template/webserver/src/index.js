@@ -6,7 +6,7 @@ import Routes from './routes.js'
 import { logger } from './util.js'
 const PORT = 3000
 
-const dirName = url.fileURLToPath(new URL(import.meta.url))
+const dirName = url.fileURLToPath(new URL(import.meta.url));
 
 const downloadsFolder = join(dirName, '../../', 'downloads')
 

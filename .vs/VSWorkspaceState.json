@@ -1,0 +1,11 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\initial-template",
+    "\\initial-template\\app",
+    "\\initial-template\\webserver",
+    "\\initial-template\\webserver\\src"
+  ],
+  "SelectedNode": "\\initial-template\\webserver\\src\\routes.js",
+  "PreviewInSolutionExplorer": false
+}
