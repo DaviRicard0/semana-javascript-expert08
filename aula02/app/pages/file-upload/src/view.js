@@ -54,4 +54,8 @@ export default class View{
     configureOnFileChange(fn){
         this.#fileUpload.addEventListener('change', this.onChange(fn));
     }
+
+    downloadBlobAsFile(buffers,filename) {
+        debugger;
+    }
 }

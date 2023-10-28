@@ -1,11 +1,16 @@
 export default class VideoProcessor {
-    #mp4Demuxer;    
+    #mp4Demuxer; 
+    #webMWriter;
+    #buffers = [];
+    
     /**
      * @param {object} option 
      * @param {import('./mp4Demuxer.js').default} option.mp4Demuxer
+     * @param {import('./../deps/webm-writer2.js').default} option.webMWriter
      */
-    constructor({mp4Demuxer}){
+    constructor({mp4Demuxer,webMWriter}){
         this.#mp4Demuxer = mp4Demuxer;
+        this.#webMWriter = webMWriter;
     }
 
     /**
@@ -47,11 +52,11 @@ export default class VideoProcessor {
                     onChunk(chunk){
                         decoder.decode(chunk);
                     }
-                }).then(()=>{
+                })/*.then(()=>{
                     setTimeout(() => {
                         controller.close();
                     }, 1000);
-                });
+                })*/;
             },
         });
     }
@@ -71,8 +76,18 @@ export default class VideoProcessor {
                 }
 
                 _encoder = new VideoEncoder({
+                    /**
+                     * @param {EncodedVideoChunk} frame 
+                     * @param {EncodedVideoChunkMetadata} config 
+                     */
                     output:(frame,config) => {
-                        debugger;
+                        if (config.decoderConfig) {
+                            const decoderConfig = {
+                                type: 'config',
+                                config: config.decoderConfig
+                            }
+                            controller.enqueue(decoderConfig);
+                        }
                         controller.enqueue(frame);
                     },
                     error: (err) => {
@@ -97,17 +112,80 @@ export default class VideoProcessor {
             writable
         }
     }
+
+    renderDecodedFramesAndGetEncodedChunks(renderFrame){
+        let _decoder;
+        return new TransformStream({
+            start: (controller)=>{
+                _decoder = new VideoDecoder({
+                    output(frame){
+                        renderFrame(frame);
+                    },
+                    error(e){
+                        console.log('error at renderFrames', e);
+                        controller.error(e);
+                    }
+                });
+            },
+            /**
+             * @param {EncodedVideoChunk} encodedChunk 
+             * @param {TransformStreamDefaultController} controller 
+             */
+            async transform(encodedChunk,controller){
+                if (encodedChunk.type === 'config') {
+                    await _decoder.configure(encodedChunk.config);
+                    return;
+                }
+
+                _decoder.decode(encodedChunk);
+
+                // nned the encoded version to use webM
+                controller.enqueue(encodedChunk);
+            }
+        });
+    }
     
-    async start({file,encoderConfig,renderFrame}){
+    transformIntoWebM(){
+        const writable = new WritableStream({
+            write:(chunk)=>{
+                this.#webMWriter.addFrame(chunk);
+            },
+            close(){
+                debugger;
+            }
+        });
+
+        return {
+            readable: this.#webMWriter.getStream(),
+            writable 
+        }
+    }
+
+    async start({file,encoderConfig,renderFrame,sendMessage}){
         const stream = file.stream();
         const fileName = file.name.split('/').pop().replace('.mp4','');
         
         return this.mp4Decoder(stream)
             .pipeThrough(this.enconde144p(encoderConfig))
-                .pipeTo(new WritableStream({
-                    write(frame){
-                        //renderFrame(frame);
-                    }
-                }));
+                .pipeThrough(this.renderDecodedFramesAndGetEncodedChunks(renderFrame))
+                    .pipeThrough(this.transformIntoWebM())
+                        .pipeThrough(new TransformStream({
+                            transform:({data,position},controller)=> {
+                                this.#buffers.push(data);
+                                controller.enqueue(data);
+                            },
+                            flush:()=>{
+                                sendMessage({
+                                    status:'done',
+                                    buffer:this.#buffers,
+                                    fileName: fileName.concat('-144p.webm')
+                                })
+                            }
+                        }))
+                            .pipeTo(new WritableStream({
+                                    write(frame){
+                                        //renderFrame(frame);
+                                    }
+                                }));
     }
 }
