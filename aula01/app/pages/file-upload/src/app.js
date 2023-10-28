@@ -4,27 +4,39 @@ import View from './view.js';
 const view = new View();
 const clock = new Clock();
 
+const worker = new Worker('./src/worker/worker.js',{
+    type:'module'
+});
+
+worker.onerror = (error) => {console.error('Erro worker: ',error)}
+
+worker.onmessage = ({data}) => {
+    if (data.status !== 'done') return;
+    clock.stop();
+    view.updateElasedTime(`Process took ${took.replace('ago', '')}`);
+}
+
 let took = '';
 view.configureOnFileChange(file => {
+    const canvas = view.getCanvas();
+    worker.postMessage({
+        file,
+        canvas
+    }, [
+        canvas
+    ]);
+
     clock.start((time) => {
         took = time;
         view.updateElasedTime(`Process started ${time}`);
     })
-
-    setTimeout(
-        () => {
-            clock.stop();
-            view.updateElasedTime(`Process took ${took.replace('ago', '')}`);
-        },
-        5000
-    );
 });
 
 async function fakeFetch() {
     const filePath = '/videos/frag_bunny.mp4';
-    const response = await fetch(filePath,{
+    const response = await fetch(filePath/*,{
         method: "HEAD"
-    });
+    }*/);
     // Retorna o tamanho do arquivo
     //const contentLength = response.headers.get('content-length');
     const file = new File([await response.blob()],filePath, {
