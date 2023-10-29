@@ -14,7 +14,9 @@ worker.onmessage = ({data}) => {
     if (data.status !== 'done') return;
     clock.stop();
     view.updateElasedTime(`Process took ${took.replace('ago', '')}`);
-    view.downloadBlobAsFile(data.buffer,data.fileName);
+
+    if (!data.buffers) return;
+    view.downloadBlobAsFile(data.buffers,data.fileName);
 }
 
 let took = '';
@@ -58,4 +60,4 @@ async function fakeFetch() {
     document.getElementById('fileUpload').dispatchEvent(event);
 };
 
-fakeFetch();
+//fakeFetch();
